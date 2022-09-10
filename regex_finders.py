@@ -23,3 +23,12 @@ def find_datetime(user_text: str) -> datetime:
         date = datetime.strptime(search_result.group()[3:], '%d.%m.%Y')
 
     return date
+
+
+def find_source(user_text_without_command: str) -> str:
+    search_result = re.search('\s[a-zA-z.,\s]*\s', user_text_without_command)
+
+    if search_result is None:
+        return ''
+    else:
+        return search_result.group()

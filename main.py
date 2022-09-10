@@ -4,6 +4,7 @@ from time import sleep
 from requests import Response
 from simple_logger import log, LogLevel
 from regex_finders import *
+from work_with_db import *
 
 url: str = None
 commands: list = [
@@ -64,13 +65,30 @@ def process_user_command(chat_id: int, user_text: str) -> None:
 
     match result.group():
         case '/expense':
+            source: str = find_source(user_text.replace(result.group(), ''))
+
+            if len(source) == 0:
+                send_message(chat_id, 'Incorrect source')
+                log(LogLevel.INFORMATION, f'Chat id: {chat_id} Incorrect source')
+                return
+
             amount: float = find_amount(user_text)
+
+            if amount is None:
+                send_message(chat_id, 'Incorrect amount')
+                log(LogLevel.INFORMATION, f'Chat id: {chat_id} Incorrect amount')
+                return
+
             date: datetime = find_datetime(user_text)
 
             log(LogLevel.INFORMATION, f'command: /expense amount: {amount} datetime: {date}')
-            send_message(chat_id, f'Add expense {amount} {date}')
+
+            insert_income_entity(chat_id, source, amount, date)
+            send_message(chat_id, f'Add expense Source: {source}\nAmount: {amount}\nDate: {date}')
         case '/income':
             send_message(chat_id, 'Add income')
+        case _:
+            return
 
 
 def main() -> None:
@@ -92,6 +110,7 @@ def main() -> None:
 
 
 if __name__ == '__main__':
+    ensure_db_created()
     load_token()
     set_bot_commands()
     main()
