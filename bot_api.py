@@ -8,6 +8,7 @@ url = 'https://api.telegram.org/bot'
 
 commands: dict = dict()
 commands_descriptions: list = list()
+update_cash: list = list()
 
 last_update_id: int = 0
 
@@ -63,8 +64,16 @@ def send_animation(chat_id: int, path_to_animation: str):
                       files={'animation': file})
 
 
-def get_updates() -> list:
+def get_update() -> dict:
     global last_update_id
+    global update_cash
+
+    if len(update_cash) != 0:
+        update = update_cash.pop(0)
+        last_update_id = update['update_id'] + 1
+        write_bot_api_backup()
+
+        return update
 
     response: dict = requests.get(url + 'getUpdates', data={
         'offset': last_update_id,
@@ -72,27 +81,29 @@ def get_updates() -> list:
     }).json()
 
     if not response['ok'] or len(response['result']) == 0:
-        return list()
+        return None
 
-    return response['result']
+    update_cash = response['result']
+    update = update_cash.pop(0)
+    last_update_id = update['update_id'] + 1
+    write_bot_api_backup()
+
+    return update
 
 
 def bot_processing() -> None:
     global last_update_id
 
     while True:
-        responses: list = get_updates()
+        response: dict = get_update()
 
-        for response in responses:
+        if response is not None:
             response_text: str = response['message']['text']
             search_result = re.search('\/[a-zA-z]*', response_text)
 
             if search_result is not None and search_result.group() in commands.keys():
                 command = search_result.group()
                 commands[command](response)
-
-            last_update_id = response['update_id'] + 1
-            write_bot_api_backup()
 
 
 def command_handler(command, description):

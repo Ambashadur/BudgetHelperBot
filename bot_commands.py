@@ -106,6 +106,7 @@ def get_budget_list(response: dict):
             expense_frame.set_index('creation_date', drop=True, inplace=True)
             total_expense = expense_frame['amount'].sum()
 
+        send_animation(chat_id, 'GIFs/rock_explaining_meme.mp4')
         send_message(chat_id, f'Total income: {total_income}\n'
                               f'Total expense: {total_expense}\n'
                               f'Total budget: {total_income - total_expense}')
