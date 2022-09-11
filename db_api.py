@@ -62,12 +62,43 @@ def insert_budget_entity(
     connection = sqlite3.connect(connection_string)
 
     insert_sql = f'''
-            insert into budget (chat_id, source, amount, creation_datetime, type_id)
-            select {chat_id}, '{source}', {amount}, '{str(creation_datetime)}', id
-            from budget_entity_type
-            where type = '{entity_type}';
-        '''
+                        insert into budget (chat_id, source, amount, creation_datetime, type_id)
+                        select {chat_id}, '{source}', {amount}, '{str(creation_datetime)}', id
+                        from budget_entity_type
+                        where type = '{entity_type}';
+                    '''
 
     connection.execute(insert_sql)
     connection.commit()
     connection.close()
+
+
+def clear_budget_table(chat_id: int):
+    connection = sqlite3.connect(connection_string)
+
+    delete_sql = f'delete from budget where chat_id = {chat_id}'
+
+    connection.execute(delete_sql)
+    connection.commit()
+    connection.close()
+
+
+def get_all_entity(chat_id: int, entity_type: str) -> list:
+    connection = sqlite3.connect(connection_string)
+
+    get_sql = f'''
+        select source, amount, creation_datetime 
+        from budget
+        where type_id = (select id from budget_entity_type where type = '{entity_type}')
+        and chat_id = {chat_id}
+    '''
+
+    cursor = connection.execute(get_sql)
+    cursor.row_factory = lambda cur, row: {
+        'source': row[0],
+        'amount': row[1],
+        'creation_date': row[2]
+    }
+
+    return cursor.fetchall()
+
