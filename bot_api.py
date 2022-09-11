@@ -78,3 +78,8 @@ def command_handler(command, description):
         })
 
     return decorator
+
+
+def send_animation(chat_id: int, path_to_animation: str):
+    with open(path_to_animation, 'rb') as file:
+        requests.post(url + 'sendAnimation', data={'chat_id': chat_id}, files={'animation': file})

@@ -32,6 +32,7 @@ def income_command(response: dict) -> None:
         return
 
     insert_budget_entity(chat_id, source, amount, date, 'income')
+    send_animation(chat_id, 'GIFs/rock-agreed-rock-sus.mp4')
     send_message(chat_id, f'Add income\nSource: {source}\nAmount: {amount}\nDate: {date}')
     logging.info(f'Bot command: /income | Chat ID: {chat_id} | Success')
 
@@ -65,6 +66,7 @@ def income_command(response: dict) -> None:
 
     insert_budget_entity(chat_id, source, amount, date, 'expense')
     send_message(chat_id, f'Add expense\nSource: {source}\nAmount: {amount}\nDate: {date}')
+    send_animation(chat_id, 'GIFs/the-rock-sus-the-rock-meme.mp4')
     logging.info(f'Bot command: /expense | Chat ID: {chat_id} | Success')
 
 
@@ -74,6 +76,7 @@ def clear(response: dict) -> None:
         chat_id = response['message']['chat']['id']
         clear_budget_table(chat_id)
 
+        send_animation(chat_id, 'GIFs/wink-wink-dwayne-johnson.mp4')
         send_message(chat_id, 'Clear all budget records')
         logging.info(f'Successfully delete all records in budget table for chat ID: {chat_id}')
 
