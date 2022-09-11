@@ -2,20 +2,39 @@ import json
 import logging
 import re
 import requests
-from requests import Response
-from time import sleep
+import os
 
 url = 'https://api.telegram.org/bot'
 
 commands: dict = dict()
 commands_descriptions: list = list()
 
+last_update_id: int = 0
+
+
+def bot_api_start() -> None:
+    load_token()
+    load_bot_api_backup()
+
 
 def load_token() -> None:
-    with open('appSettings.json') as file:
+    with open('appSettings.json', 'r') as file:
         global url
         bot_token = json.load(file)['bot_token']
         url += f'{bot_token}/'
+
+
+def load_bot_api_backup() -> None:
+    if os.path.exists('bot_api_backup.json'):
+        with open('bot_api_backup.json', 'r') as file:
+            global last_update_id
+            last_update_id = json.load(file)['update_id']
+
+
+def write_bot_api_backup() -> None:
+    with open('bot_api_backup.json', 'w') as file:
+        global last_update_id
+        json.dump({'update_id': last_update_id}, file)
 
 
 def set_bot_commands() -> None:
@@ -30,35 +49,41 @@ def set_bot_commands() -> None:
         logging.error(f'While setting bot commands response: {response}')
 
 
-def send_message(chat_id: int, message: str) -> dict:
-    data = {
+def send_message(chat_id: int, message: str) -> None:
+    requests.post(url + 'sendMessage', data={
         'chat_id': chat_id,
         'text': message
-    }
-
-    response: Response = requests.post(url + 'sendMessage', data=data)
-    return response.json()
+    })
 
 
-def get_update() -> dict:
-    response: Response = requests.get(url + 'getUpdates')
-    content: dict = response.json()
-
-    if content['ok']:
-        return content['result'][-1]
-
-    return dict()
+def send_animation(chat_id: int, path_to_animation: str):
+    with open(path_to_animation, 'rb') as file:
+        requests.post(url + 'sendAnimation',
+                      data={'chat_id': chat_id},
+                      files={'animation': file})
 
 
-def processing_get_updates() -> None:
-    last_update_id: int = None
+def get_updates() -> list:
+    global last_update_id
+
+    response: dict = requests.get(url + 'getUpdates', data={
+        'offset': last_update_id,
+        'timeout': 5
+    }).json()
+
+    if not response['ok'] or len(response['result']) == 0:
+        return list()
+
+    return response['result']
+
+
+def bot_processing() -> None:
+    global last_update_id
 
     while True:
-        response: dict = get_update()
+        responses: list = get_updates()
 
-        if len(response) > 0 and response['update_id'] != last_update_id:
-            last_update_id = response['update_id']
-
+        for response in responses:
             response_text: str = response['message']['text']
             search_result = re.search('\/[a-zA-z]*', response_text)
 
@@ -66,7 +91,8 @@ def processing_get_updates() -> None:
                 command = search_result.group()
                 commands[command](response)
 
-        sleep(1)
+            last_update_id = response['update_id'] + 1
+            write_bot_api_backup()
 
 
 def command_handler(command, description):
@@ -78,8 +104,3 @@ def command_handler(command, description):
         })
 
     return decorator
-
-
-def send_animation(chat_id: int, path_to_animation: str):
-    with open(path_to_animation, 'rb') as file:
-        requests.post(url + 'sendAnimation', data={'chat_id': chat_id}, files={'animation': file})

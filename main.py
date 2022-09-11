@@ -5,6 +5,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format=log_format)
 
     ensure_db_created()
-    load_token()
+
+    bot_api_start()
     set_bot_commands()
-    processing_get_updates()
+    bot_processing()
