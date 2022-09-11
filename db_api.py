@@ -52,11 +52,12 @@ def ensure_db_created() -> None:
     connection.close()
 
 
-def insert_income_entity(
+def insert_budget_entity(
         chat_id: int,
         source: str,
         amount: float,
-        creation_datetime: datetime
+        creation_datetime: datetime,
+        entity_type: str
 ) -> None:
     connection = sqlite3.connect(connection_string)
 
@@ -64,7 +65,7 @@ def insert_income_entity(
             insert into budget (chat_id, source, amount, creation_datetime, type_id)
             select {chat_id}, '{source}', {amount}, '{str(creation_datetime)}', id
             from budget_entity_type
-            where type = 'income';
+            where type = '{entity_type}';
         '''
 
     connection.execute(insert_sql)

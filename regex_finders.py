@@ -26,7 +26,7 @@ def find_datetime(user_text: str) -> datetime:
 
 
 def find_source(user_text_without_command: str) -> str:
-    search_result = re.search('\s[a-zA-z.,\s]*\s', user_text_without_command)
+    search_result = re.search('\s[a-zA-zа-яА-я.,\s]*\s', user_text_without_command)
 
     if search_result is None:
         return ''
