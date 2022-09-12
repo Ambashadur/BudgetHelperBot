@@ -2,33 +2,35 @@ import re
 from datetime import datetime
 
 
-def find_amount(user_text: str) -> float:
-    search_result = re.search('-c \d{1,12}(([.,]\d{1,2})|\s|$)', user_text)
+def find_amount(text: str) -> float:
+    search_result = re.search('(\d{1,12}([.,]\d{1,2}))|(\d{1,12}[.,])|(\d{1,12})', text)
 
     if search_result is None:
         return None
 
-    return float(search_result.group()[3:])
+    return float(search_result.group())
 
 
-def find_datetime(user_text: str) -> datetime:
-    search_result = re.search('-d \d{1,2}.\d{1,2}.\d{4}(( (([0-1][0-9])|([2][0-3])):([0-5][0-9]))|\s|$)', user_text)
+def find_datetime(text: str) -> datetime:
+    search_result = re.search(
+        '([1-9]|[1-2][0-9]|3[0-2]).([1-9]|1[0-2]).\d{4}(\s?(([0-1][0-9]|2[0-3]):([0-5][0-9]))|)',
+        text)
 
     if search_result is None:
         return datetime.now()
 
     try:
-        date = datetime.strptime(search_result.group()[3:], '%d.%m.%Y %H:%M')
+        date = datetime.strptime(search_result.group(), '%d.%m.%Y %H:%M')
     except:
-        date = datetime.strptime(search_result.group()[3:], '%d.%m.%Y')
+        date = datetime.strptime(search_result.group(), '%d.%m.%Y')
 
     return date
 
 
-def find_source(user_text_without_command: str) -> str:
-    search_result = re.search('\s[a-zA-zа-яА-я.,\s]*\s', user_text_without_command)
+def find_source(text: str) -> str:
+    search_result = re.search('[a-zA-zа-яА-я.,\s]+', text)
 
     if search_result is None:
-        return ''
+        return None
     else:
         return search_result.group()

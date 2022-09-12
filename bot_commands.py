@@ -6,35 +6,22 @@ from db_api import *
 
 @command_handler(command='/income', description='Add income')
 def income_command(response: dict) -> None:
-    user_text = response['message']['text']
     chat_id = response['message']['chat']['id']
+    send_message(chat_id, 'Please enter source of income.'
+                          '\nMust contains only letters, comma, dot and space')
 
-    source: str = find_source(user_text)
-
-    if len(source) == 0:
-        send_message(chat_id, 'Incorrect source')
-        logging.error(
-            f'Bot command: /income | Chat ID: {chat_id} | Incorrect income source | User message: {user_text}')
-        return
-
-    amount: float = find_amount(user_text)
-
-    if amount is None:
-        send_message(chat_id, 'Incorrect amount')
-        logging.error(f'Bot command: /income | Chat ID: {chat_id} | Incorrect amount | User message: {user_text}')
-        return
-
-    date: datetime = find_datetime(user_text)
-
-    if date > datetime.now():
-        send_message(chat_id, 'Incorrect date')
-        logging.error(f'Bot command: /income | Chat ID: {chat_id} | Incorrect date | User message: {user_text}')
-        return
-
-    insert_budget_entity(chat_id, source, amount, date, 'income')
-    send_animation(chat_id, 'GIFs/rock-agreed-rock-sus.mp4')
-    send_message(chat_id, f'Add income\nSource: {source}\nAmount: {amount}\nDate: {date}')
-    logging.info(f'Bot command: /income | Chat ID: {chat_id} | Success')
+    commands_cash[chat_id] = {
+        'command': '/income',
+        'function': process_source,
+        'on_failed_text': 'Please enter source of income.\nMust contains only letters, comma, dot and space',
+        'entity': {
+            'chat_id': chat_id,
+            'source': None,
+            'amount': None,
+            'date': None,
+            'budget_entity': 'income'
+        }
+    }
 
 
 @command_handler(command='/expense', description='Add expense')
@@ -114,3 +101,61 @@ def get_budget_list(response: dict):
 
     except Exception as ex:
         logging.error(ex)
+
+
+@command_handler(command='/cancel', description='Cancel executing command')
+def cancel(response: dict):
+    chat_id = response['message']['chat']['id']
+
+    if chat_id in commands_cash.keys():
+        commands_cash.pop(chat_id)
+        send_message(chat_id, 'Command successfully canceled')
+
+
+def process_source(response:  dict):
+    chat_id = response['message']['chat']['id']
+    source = find_source(response['message']['text'])
+
+    if source is not None:
+        commands_cash[chat_id]['entity']['source'] = source
+        commands_cash[chat_id]['function'] = process_amount
+        commands_cash[chat_id]['on_failed_text'] = \
+            'Please enter amount.\nMust be positive float number in Rubles'
+        send_message(chat_id, 'Please enter amount.\nMust be positive float number in Rubles')
+    else:
+        send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
+
+
+def process_amount(response: dict):
+    chat_id = response['message']['chat']['id']
+    amount = find_amount(response['message']['text'])
+
+    if amount is not None:
+        commands_cash[chat_id]['entity']['amount'] = amount
+        commands_cash[chat_id]['function'] = process_date
+        commands_cash[chat_id]['on_failed_text'] = \
+            'Please enter date.\nIn format {dd.mm.yyyy} or {dd.mm.yyyy HH:MM} in 24 hours format'
+        send_message(chat_id, 'Please enter date.\nIn format {dd.mm.yyyy} or {dd.mm.yyyy HH:MM} in 24 hours format')
+    else:
+        send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
+
+
+def process_date(response: dict):
+    chat_id = response['message']['chat']['id']
+    date = find_datetime(response['message']['text'])
+
+    if date is not None:
+        entity = commands_cash[chat_id]['entity']
+
+        insert_budget_entity(chat_id, entity['source'], entity['amount'], date, entity['budget_entity'])
+
+        send_animation(chat_id, 'GIFs/rock-agreed-rock-sus.mp4')
+        send_message(chat_id, f'Add income\n'
+                              f'Source: {entity["source"]}\n'
+                              f'Amount: {entity["amount"]}\n'
+                              f'Date: {str(date)}')
+
+        commands_cash.pop(chat_id)
+        logging.info(f'Bot command: /income | Chat ID: {chat_id} | Success')
+    else:
+        send_message(chat_id, commands_cash[chat_id]['on_failed_text'])

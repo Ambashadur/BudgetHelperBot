@@ -6,9 +6,12 @@ import os
 
 url = 'https://api.telegram.org/bot'
 
+regex_patterns: dict = dict()
 commands: dict = dict()
 commands_descriptions: list = list()
+
 update_cash: list = list()
+commands_cash: dict = dict()
 
 last_update_id: int = 0
 
@@ -99,14 +102,18 @@ def bot_processing() -> None:
 
         if response is not None:
             response_text: str = response['message']['text']
+            chat_id: int = response['message']['chat']['id']
+
             search_result = re.search('\/[a-zA-z]*', response_text)
 
             if search_result is not None and search_result.group() in commands.keys():
                 command = search_result.group()
                 commands[command](response)
+            elif chat_id in commands_cash.keys():
+                commands_cash[chat_id]['function'](response)
 
 
-def command_handler(command, description):
+def command_handler(command: str, description: str):
     def decorator(func):
         commands[command] = func
         commands_descriptions.append({
