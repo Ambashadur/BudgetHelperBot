@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from urllib.parse import quote, urlencode
 import requests
 import os
 
@@ -53,11 +54,14 @@ def set_bot_commands() -> None:
         logging.error(f'While setting bot commands response: {response}')
 
 
-def send_message(chat_id: int, message: str) -> None:
-    requests.post(url + 'sendMessage', data={
+def send_message(chat_id: int, message: str, reply_markup: dict = None) -> None:
+    data = {
         'chat_id': chat_id,
-        'text': message
-    })
+        'text': message,
+        'reply_markup': reply_markup
+    }
+
+    requests.post(url + 'sendMessage', data)
 
 
 def send_animation(chat_id: int, path_to_animation: str):
@@ -99,10 +103,9 @@ def bot_processing() -> None:
 
     while True:
         response: dict = get_update()
-
-        if response is not None:
+        #TODO add processing callback_query
+        if response is not None and 'message' in response.keys():
             response_text: str = response['message']['text']
-            chat_id: int = response['message']['chat']['id']
 
             search_result = re.search('\/[a-zA-z]*', response_text)
 
