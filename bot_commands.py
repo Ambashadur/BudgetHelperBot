@@ -4,6 +4,9 @@ from regex_finders import *
 from db_api import *
 
 
+commands_cash: dict = dict()
+
+
 @command_handler(command='/income', description='Add income')
 def income_command(response: dict) -> None:
     chat_id = response['message']['chat']['id']
@@ -26,35 +29,22 @@ def income_command(response: dict) -> None:
 
 @command_handler(command='/expense', description='Add expense')
 def income_command(response: dict) -> None:
-    user_text = response['message']['text']
     chat_id = response['message']['chat']['id']
+    send_message(chat_id, 'Please enter source of expense.'
+                          '\nMust contains only letters, comma, dot and space')
 
-    source: str = find_source(user_text)
-
-    if len(source) == 0:
-        send_message(chat_id, 'Incorrect source')
-        logging.error(
-            f'Bot command: /expense | Chat ID: {chat_id} | Incorrect expense source | User message: {user_text}')
-        return
-
-    amount: float = find_amount(user_text)
-
-    if amount is None:
-        send_message(chat_id, 'Incorrect amount')
-        logging.error(f'Bot command: /expense | Chat ID: {chat_id} | Incorrect amount | User message: {user_text}')
-        return
-
-    date: datetime = find_datetime(user_text)
-
-    if date > datetime.now():
-        send_message(chat_id, 'Incorrect date')
-        logging.error(f'Bot command: /expense | Chat ID: {chat_id} | Incorrect date | User message: {user_text}')
-        return
-
-    insert_budget_entity(chat_id, source, amount, date, 'expense')
-    send_message(chat_id, f'Add expense\nSource: {source}\nAmount: {amount}\nDate: {date}')
-    send_animation(chat_id, 'GIFs/the-rock-sus-the-rock-meme.mp4')
-    logging.info(f'Bot command: /expense | Chat ID: {chat_id} | Success')
+    commands_cash[chat_id] = {
+        'command': '/expense',
+        'function': process_source,
+        'on_failed_text': 'Please enter source of expense.\nMust contains only letters, comma, dot and space',
+        'entity': {
+            'chat_id': chat_id,
+            'source': None,
+            'amount': None,
+            'date': None,
+            'budget_entity': 'income'
+        }
+    }
 
 
 @command_handler(command='/clear', description='Delete all records of budget')
@@ -155,7 +145,15 @@ def process_date(response: dict):
                               f'Amount: {entity["amount"]}\n'
                               f'Date: {str(date)}')
 
+        logging.info(f'Bot command: {commands_cash[chat_id]["command"]} | Chat ID: {chat_id} | Success')
         commands_cash.pop(chat_id)
-        logging.info(f'Bot command: /income | Chat ID: {chat_id} | Success')
     else:
         send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
+
+
+@default_command_handler
+def default(response: dict):
+    chat_id = response['message']['chat']['id']
+
+    if chat_id in commands_cash.keys():
+        commands_cash[chat_id]['function'](response)

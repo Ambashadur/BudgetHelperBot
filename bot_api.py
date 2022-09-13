@@ -6,12 +6,12 @@ import os
 
 url = 'https://api.telegram.org/bot'
 
-regex_patterns: dict = dict()
+default_command = None
+
 commands: dict = dict()
 commands_descriptions: list = list()
 
 update_cash: list = list()
-commands_cash: dict = dict()
 
 last_update_id: int = 0
 
@@ -109,8 +109,8 @@ def bot_processing() -> None:
             if search_result is not None and search_result.group() in commands.keys():
                 command = search_result.group()
                 commands[command](response)
-            elif chat_id in commands_cash.keys():
-                commands_cash[chat_id]['function'](response)
+            elif default_command is not None:
+                default_command(response)
 
 
 def command_handler(command: str, description: str):
@@ -122,3 +122,8 @@ def command_handler(command: str, description: str):
         })
 
     return decorator
+
+
+def default_command_handler(func):
+    global default_command
+    default_command = func
