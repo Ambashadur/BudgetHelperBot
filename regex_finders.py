@@ -17,7 +17,7 @@ def find_datetime(text: str) -> datetime:
         text)
 
     if search_result is None:
-        return datetime.now()
+        return None
 
     try:
         date = datetime.strptime(search_result.group(), '%d.%m.%Y %H:%M')

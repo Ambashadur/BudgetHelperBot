@@ -1,13 +1,14 @@
 import json
 import logging
 import re
-from urllib.parse import quote, urlencode
 import requests
 import os
 
 url = 'https://api.telegram.org/bot'
 
 default_command = None
+
+callback_queries: dict = dict()
 
 commands: dict = dict()
 commands_descriptions: list = list()
@@ -58,17 +59,24 @@ def send_message(chat_id: int, message: str, reply_markup: dict = None) -> None:
     data = {
         'chat_id': chat_id,
         'text': message,
-        'reply_markup': reply_markup
+        'reply_markup': None if reply_markup is None else json.dumps(reply_markup)
     }
 
     requests.post(url + 'sendMessage', data)
 
 
-def send_animation(chat_id: int, path_to_animation: str):
+def send_animation(chat_id: int, path_to_animation: str) -> None:
     with open(path_to_animation, 'rb') as file:
         requests.post(url + 'sendAnimation',
                       data={'chat_id': chat_id},
                       files={'animation': file})
+
+
+def answer_callback_query(callback_query_id: int, text: str) -> None:
+    requests.post(url + 'answerCallbackQuery', data={
+        'callback_query_id': callback_query_id,
+        'text': text
+    })
 
 
 def get_update() -> dict:
@@ -103,8 +111,11 @@ def bot_processing() -> None:
 
     while True:
         response: dict = get_update()
-        #TODO add processing callback_query
-        if response is not None and 'message' in response.keys():
+
+        if response is None:
+            continue
+
+        if 'message' in response.keys() and 'text' in response['message'].keys():
             response_text: str = response['message']['text']
 
             search_result = re.search('\/[a-zA-z]*', response_text)
@@ -112,8 +123,15 @@ def bot_processing() -> None:
             if search_result is not None and search_result.group() in commands.keys():
                 command = search_result.group()
                 commands[command](response)
+
             elif default_command is not None:
                 default_command(response)
+
+        elif 'callback_query' in response.keys():
+            data: str = response['callback_query']['data']
+
+            if data in callback_queries.keys():
+                callback_queries[data](response)
 
 
 def command_handler(command: str, description: str):
@@ -123,6 +141,13 @@ def command_handler(command: str, description: str):
             'command': command,
             'description': description
         })
+
+    return decorator
+
+
+def callback_query_handler(callback_data: str):
+    def decorator(func):
+        callback_queries[callback_data] = func
 
     return decorator
 
