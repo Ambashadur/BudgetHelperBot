@@ -72,6 +72,20 @@ def send_animation(chat_id: int, path_to_animation: str) -> None:
                       files={'animation': file})
 
 
+def send_photo(chat_id: int, path_to_photo: str) -> None:
+    with open(path_to_photo, 'rb') as file:
+        requests.post(url + 'sendPhoto',
+                      data={'chat_id': chat_id},
+                      files={'photo': file})
+
+
+def send_document(chat_id: int, path_to_file: str) -> None:
+    with open(path_to_file, 'rb') as file:
+        requests.post(url + 'sendDocument',
+                      data={'chat_id': chat_id},
+                      files={'document': file})
+
+
 def answer_callback_query(callback_query_id: int, text: str) -> None:
     requests.post(url + 'answerCallbackQuery', data={
         'callback_query_id': callback_query_id,

@@ -3,7 +3,7 @@ from datetime import datetime
 
 
 def find_amount(text: str) -> float:
-    search_result = re.search('(\d{1,6}([.,]\d{1,2}))|(\d{1,6}[.,])|(\d{1,6})', text)
+    search_result = re.search('(\d{1,6}([.,]\d{1,2}))|(\d{1,6}[.])|(\d{1,6})', text)
 
     if search_result is None:
         return None

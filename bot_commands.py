@@ -1,4 +1,5 @@
 import pandas as pd
+from matplotlib import pyplot as plt
 from bot_api import *
 from regex_finders import *
 from db_api import *
@@ -44,7 +45,7 @@ def income_command(response: dict) -> None:
             send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
             return
 
-        send_message(chat_id, 'Введите пожалуйста на что были потрачены дегьги\n'
+        send_message(chat_id, 'Введите пожалуйста на что были потрачены деньги\n'
                               'Допускаются только буквы (как латиница, так и кириллица), точка, запятая и пробел')
 
         commands_cash[chat_id] = {
@@ -138,24 +139,27 @@ def cancel(response: dict) -> None:
 
 @callback_query_handler(callback_data='current_date')
 def current_date(response: dict) -> None:
-    chat_id: int = response['callback_query']['message']['chat']['id']
+    try:
+        chat_id: int = response['callback_query']['message']['chat']['id']
 
-    if chat_id in commands_cash.keys():
-        date = datetime.now()
-        entity = commands_cash[chat_id]['entity']
+        if chat_id in commands_cash.keys():
+            date = datetime.now()
+            entity = commands_cash[chat_id]['entity']
 
-        insert_budget_entity(chat_id, entity['source'], entity['amount'], date, entity['budget_entity'])
+            insert_budget_entity(chat_id, entity['source'], entity['amount'], date, entity['budget_entity'])
 
-        answer_callback_query(response['callback_query']['id'], 'Готово')
+            answer_callback_query(response['callback_query']['id'], 'Готово')
 
-        send_animation(chat_id, 'GIFs/rock-agreed-rock-sus.mp4')
-        send_message(chat_id, f'Запись добавлена\n'
-                              f'Источник: {entity["source"]}\n'
-                              f'Сумма: {entity["amount"]}\n'
-                              f'Дата: {str(date)}')
+            send_animation(chat_id, 'GIFs/rock-agreed-rock-sus.mp4')
+            send_message(chat_id, f'Запись добавлена\n'
+                                  f'Источник: {entity["source"]}\n'
+                                  f'Сумма: {entity["amount"]}\n'
+                                  f'Дата: {str(date)}')
 
-        logging.info(f'Bot command: {commands_cash[chat_id]["command"]} | Chat ID: {chat_id} | Success')
-        commands_cash.pop(chat_id)
+            logging.info(f'Bot command: {commands_cash[chat_id]["command"]} | Chat ID: {chat_id} | Success')
+            commands_cash.pop(chat_id)
+    except Exception as ex:
+        logging.error(ex)
 
 
 @callback_query_handler(callback_data='short_info')
@@ -194,18 +198,97 @@ def get_short_budget_info(response: dict) -> None:
 
 @callback_query_handler(callback_data='get_file_budget')
 def get_file_budget(response: dict) -> None:
-    chat_id: int = response['callback_query']['message']['chat']['id']
+    try:
+        chat_id: int = response['callback_query']['message']['chat']['id']
 
-    answer_callback_query(response['callback_query']['id'], 'Готово')
-    send_message(chat_id, 'Упсс, ещё не готово.')
+        all_incomes: list = get_all_entity(chat_id, 'income')
+
+        income_frame = pd.DataFrame(columns=['source', 'amount', 'creation_date'])
+        expense_frame = pd.DataFrame(columns=['source', 'amount', 'creation_date'])
+
+        if len(all_incomes) != 0:
+            income_frame = pd.DataFrame(all_incomes)
+
+        income_frame.rename(columns={'amount': 'Доход', 'source': 'Источник'}, inplace=True)
+        income_frame.set_index('creation_date', drop=True, inplace=True)
+        income_frame.index = pd.to_datetime(income_frame.index)
+
+        all_expenses: list = get_all_entity(chat_id, 'expense')
+
+        if len(all_expenses) != 0:
+            expense_frame = pd.DataFrame(all_expenses)
+
+        expense_frame.rename(columns={'amount': 'Расход', 'source': 'Цель расхода'}, inplace=True)
+        expense_frame.set_index('creation_date', drop=True, inplace=True)
+        expense_frame.index = pd.to_datetime(expense_frame.index)
+
+        budget_frame = income_frame.join(expense_frame, how='outer')
+        budget_frame.fillna(0.0, inplace=True)
+
+        filename: str = 'Files/' + str(datetime.now()) + '.csv'
+        budget_frame.to_csv(filename)
+
+        answer_callback_query(response['callback_query']['id'], 'Готово')
+        send_document(chat_id, filename)
+
+        os.remove(filename)
+
+    except Exception as ex:
+        logging.error(ex)
 
 
 @callback_query_handler(callback_data='get_plot_budget')
 def get_plot_budget(response: dict) -> None:
-    chat_id: int = response['callback_query']['message']['chat']['id']
+    try:
+        chat_id: int = response['callback_query']['message']['chat']['id']
 
-    answer_callback_query(response['callback_query']['id'], 'Готово')
-    send_message(chat_id, 'Упсс, ещё не готово.')
+        all_incomes: list = get_all_entity(chat_id, 'income')
+
+        income_frame = pd.DataFrame(columns=['source', 'amount', 'creation_date'])
+        expense_frame = pd.DataFrame(columns=['source', 'amount', 'creation_date'])
+
+        if len(all_incomes) != 0:
+            income_frame = pd.DataFrame(all_incomes)
+
+        income_frame.drop(columns=['source'], inplace=True)
+        income_frame.rename(columns={'amount': 'Доход'}, inplace=True)
+        income_frame.set_index('creation_date', drop=True, inplace=True)
+        income_frame.index = pd.to_datetime(income_frame.index)
+
+        all_expenses: list = get_all_entity(chat_id, 'expense')
+
+        if len(all_expenses) != 0:
+            expense_frame = pd.DataFrame(all_expenses)
+
+        expense_frame.drop(columns=['source'], inplace=True)
+        expense_frame.rename(columns={'amount': 'Расход'}, inplace=True)
+        expense_frame.set_index('creation_date', drop=True, inplace=True)
+        expense_frame.index = pd.to_datetime(expense_frame.index)
+
+        budget_frame = income_frame.join(expense_frame, how='outer')
+        budget_frame.fillna(0.0, inplace=True)
+
+        plt.clf()
+
+        plt.plot(budget_frame['Доход'], label='Доход')
+        plt.plot(budget_frame['Расход'], label='Расход')
+        plt.grid()
+        plt.legend()
+        plt.title('График расходов и доходов')
+        plt.xlabel('Дата')
+        plt.ylabel('Сумма, руб.')
+        plt.xticks(rotation=45)
+
+        filename: str = 'Plots/' + str(datetime.now()) + '.jpg'
+        plt.savefig(filename, dpi=150, bbox_inches='tight')
+
+        answer_callback_query(response['callback_query']['id'], 'Готово')
+        send_photo(chat_id, filename)
+
+        os.remove(filename)
+
+    except Exception as ex:
+        logging.error(ex)
 
 
 @default_command_handler
@@ -217,67 +300,80 @@ def default(response: dict) -> None:
 
 
 def process_source(response:  dict) -> None:
-    chat_id: int = response['message']['chat']['id']
-    source = find_source(response['message']['text'])
+    try:
+        chat_id: int = response['message']['chat']['id']
+        source = find_source(response['message']['text'])
 
-    if source is not None:
-        commands_cash[chat_id]['entity']['source'] = source
-        commands_cash[chat_id]['process_function'] = process_amount
-        commands_cash[chat_id]['on_failed_text'] = 'Допускаются только суммы не свыше 999999 рублей.\n' \
-            'Допускаются только 2 цифры после запятой.'
-        send_message(chat_id, 'Введите пожалуйста сумму денег.\n'
-                              'Допускаются только суммы не свыше 999999 рублей.\n'
-                              'Допускаются только 2 цифры после запятой.')
-    else:
-        send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
+        if source is not None:
+            commands_cash[chat_id]['entity']['source'] = source
+            commands_cash[chat_id]['process_function'] = process_amount
+            commands_cash[chat_id]['on_failed_text'] = 'Допускаются только суммы не свыше 999999 рублей.\n' \
+                                                       'Допускаются только 2 цифры после запятой.'
+            send_message(chat_id, 'Введите пожалуйста сумму денег.\n'
+                                  'Допускаются только суммы не свыше 999999 рублей.\n'
+                                  'Допускаются только 2 цифры после запятой.')
+        else:
+            send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
+
+    except Exception as ex:
+        logging.error(ex)
 
 
 def process_amount(response: dict) -> None:
-    chat_id = response['message']['chat']['id']
-    amount = find_amount(response['message']['text'])
+    try:
+        chat_id = response['message']['chat']['id']
+        amount = find_amount(response['message']['text'])
 
-    if amount is not None:
-        commands_cash[chat_id]['entity']['amount'] = amount
-        commands_cash[chat_id]['process_function'] = process_date
-        commands_cash[chat_id]['on_failed_text'] = 'Допускаются даты в формате {dd.mm.yyyy} или {dd.mm.yyyy HH:MM}\n' \
-                                                   '(24 часовое представление времени).\n' \
-                                                   'Дата должна быть не позднее текущей.'
+        if amount is not None:
+            commands_cash[chat_id]['entity']['amount'] = amount
+            commands_cash[chat_id]['process_function'] = process_date
+            commands_cash[chat_id][
+                'on_failed_text'] = 'Допускаются даты в формате {dd.mm.yyyy} или {dd.mm.yyyy HH:MM}\n' \
+                                    '(24 часовое представление времени).\n' \
+                                    'Дата должна быть не позднее текущей.'
 
-        inline_keyboard = [
-            [
-                {
-                    'text': 'Указать текущую дату',
-                    'callback_data': 'current_date'
-                }
+            inline_keyboard = [
+                [
+                    {
+                        'text': 'Указать текущую дату',
+                        'callback_data': 'current_date'
+                    }
+                ]
             ]
-        ]
 
-        send_message(chat_id,
-                     'Введите пожалуйста дату.\n'
-                     'Допускаются даты в формате {дд.мм.гггг} или {дд.мм.гггг ЧЧ:ММ}\n'
-                     '(24 часовое представление времени).\n'
-                     'Дата должна быть не позднее текущей.',
-                     {'inline_keyboard': inline_keyboard})
-    else:
-        send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
+            send_message(chat_id,
+                         'Введите пожалуйста дату.\n'
+                         'Допускаются даты в формате {дд.мм.гггг} или {дд.мм.гггг ЧЧ:ММ}\n'
+                         '(24 часовое представление времени).\n'
+                         'Дата должна быть не позднее текущей.',
+                         {'inline_keyboard': inline_keyboard})
+        else:
+            send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
+
+    except Exception as ex:
+        logging.error(ex)
 
 
 def process_date(response: dict) -> None:
-    chat_id = response['message']['chat']['id']
-    date = find_datetime(response['message']['text'])
+    try:
+        chat_id = response['message']['chat']['id']
+        date = find_datetime(response['message']['text'])
 
-    if date is not None and date <= datetime.now():
-        entity = commands_cash[chat_id]['entity']
+        if date is not None and date <= datetime.now():
+            entity = commands_cash[chat_id]['entity']
 
-        insert_budget_entity(chat_id, entity['source'], entity['amount'], date, entity['budget_entity'])
+            insert_budget_entity(chat_id, entity['source'], entity['amount'], date, entity['budget_entity'])
 
-        send_animation(chat_id, 'GIFs/rock-agreed-rock-sus.mp4')
-        send_message(chat_id, f'Запись добавлена\n'
-                              f'Источник: {entity["source"]}\n'
-                              f'Сумма: {entity["amount"]}\n'
-                              f'Дата: {str(date)}')
+            send_animation(chat_id, 'GIFs/rock-agreed-rock-sus.mp4')
+            send_message(chat_id, f'Запись добавлена\n'
+                                  f'Источник: {entity["source"]}\n'
+                                  f'Сумма: {entity["amount"]}\n'
+                                  f'Дата: {str(date)}')
 
-        logging.info(f'Bot command: {commands_cash[chat_id]["command"]} | Chat ID: {chat_id} | Success')
-        commands_cash.pop(chat_id)
-    else:
-        send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
+            logging.info(f'Bot command: {commands_cash[chat_id]["command"]} | Chat ID: {chat_id} | Success')
+            commands_cash.pop(chat_id)
+        else:
+            send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
+
+    except Exception as ex:
+        logging.error(ex)
