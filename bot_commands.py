@@ -1,9 +1,9 @@
 import pandas as pd
+from pandas import DataFrame
 from matplotlib import pyplot as plt
 from bot_api import *
 from regex_finders import *
 from db_api import *
-
 
 commands_cash: dict = dict()
 
@@ -11,9 +11,9 @@ commands_cash: dict = dict()
 @command_handler(command='/income', description='Добавить новую запись о доходах')
 def income_command(response: dict) -> None:
     try:
-        chat_id = response['message']['chat']['id']
+        chat_id: int = response['message']['chat']['id']
 
-        if chat_id in commands_cash.keys():
+        if chat_id in commands_cash:
             send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
             return
 
@@ -32,6 +32,7 @@ def income_command(response: dict) -> None:
                 'budget_entity': 'income'
             }
         }
+
     except Exception as ex:
         logging.error(ex)
 
@@ -39,9 +40,9 @@ def income_command(response: dict) -> None:
 @command_handler(command='/expense', description='Добавить новую запись о расходах')
 def income_command(response: dict) -> None:
     try:
-        chat_id = response['message']['chat']['id']
+        chat_id: int = response['message']['chat']['id']
 
-        if chat_id in commands_cash.keys():
+        if chat_id in commands_cash:
             send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
             return
 
@@ -68,9 +69,9 @@ def income_command(response: dict) -> None:
 @command_handler(command='/clear', description='Удалить все записи о доходах и расходах')
 def clear(response: dict) -> None:
     try:
-        chat_id = response['message']['chat']['id']
+        chat_id: int = response['message']['chat']['id']
 
-        if chat_id in commands_cash.keys():
+        if chat_id in commands_cash:
             send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
             return
 
@@ -87,9 +88,9 @@ def clear(response: dict) -> None:
 @command_handler(command='/getbudget', description='Получить сводку об общих доходах и расходах')
 def get_budget_list(response: dict) -> None:
     try:
-        chat_id = response['message']['chat']['id']
+        chat_id: int = response['message']['chat']['id']
 
-        if chat_id in commands_cash.keys():
+        if chat_id in commands_cash:
             send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
             return
 
@@ -125,9 +126,9 @@ def get_budget_list(response: dict) -> None:
 @command_handler(command='/cancel', description='Отменить выполнение текущей команды')
 def cancel(response: dict) -> None:
     try:
-        chat_id = response['message']['chat']['id']
+        chat_id: int = response['message']['chat']['id']
 
-        if chat_id in commands_cash.keys():
+        if chat_id in commands_cash:
             commands_cash.pop(chat_id)
             send_message(chat_id, 'Команда успешно отменена.')
         else:
@@ -142,7 +143,7 @@ def current_date(response: dict) -> None:
     try:
         chat_id: int = response['callback_query']['message']['chat']['id']
 
-        if chat_id in commands_cash.keys():
+        if chat_id in commands_cash:
             date = datetime.now()
             entity = commands_cash[chat_id]['entity']
 
@@ -158,6 +159,11 @@ def current_date(response: dict) -> None:
 
             logging.info(f'Bot command: {commands_cash[chat_id]["command"]} | Chat ID: {chat_id} | Success')
             commands_cash.pop(chat_id)
+
+        else:
+            answer_callback_query(response['callback_query']['id'], 'Ошибка')
+            send_message(chat_id, 'Не достаточно данных для сохранения записи')
+
     except Exception as ex:
         logging.error(ex)
 
@@ -166,30 +172,17 @@ def current_date(response: dict) -> None:
 def get_short_budget_info(response: dict) -> None:
     try:
         chat_id: int = response['callback_query']['message']['chat']['id']
+        budget_frame = get_budget_frame(chat_id)
 
-        total_income: float = 0
-        total_expense: float = 0
-
-        all_incomes: list = get_all_entity(chat_id, 'income')
-
-        if len(all_incomes) != 0:
-            income_frame = pd.DataFrame(all_incomes)
-            income_frame.set_index('creation_date', drop=True, inplace=True)
-            total_income = income_frame['amount'].sum()
-
-        all_expenses: list = get_all_entity(chat_id, 'expense')
-
-        if len(all_expenses) != 0:
-            expense_frame = pd.DataFrame(all_expenses)
-            expense_frame.set_index('creation_date', drop=True, inplace=True)
-            total_expense = expense_frame['amount'].sum()
+        income_sum: float = budget_frame["income_amount"].sum()
+        expense_sum: float = budget_frame["expense_amount"].sum()
 
         answer_callback_query(response['callback_query']['id'], 'Готово')
 
         send_animation(chat_id, 'GIFs/rock_explaining_meme.mp4')
-        send_message(chat_id, f'Общие доходы: {total_income}\n'
-                              f'Общие расходы: {total_expense}\n'
-                              f'Общий буджет на текущий момент: {total_income - total_expense}')
+        send_message(chat_id, f'Общие доходы: {income_sum}\n'
+                              f'Общие расходы: {expense_sum}\n'
+                              f'Общий буджет на текущий момент: {income_sum - expense_sum}')
         logging.info(f'Successfully delete all records in budget table for chat ID: {chat_id}')
 
     except Exception as ex:
@@ -201,29 +194,13 @@ def get_file_budget(response: dict) -> None:
     try:
         chat_id: int = response['callback_query']['message']['chat']['id']
 
-        all_incomes: list = get_all_entity(chat_id, 'income')
-
-        income_frame = pd.DataFrame(columns=['source', 'amount', 'creation_date'])
-        expense_frame = pd.DataFrame(columns=['source', 'amount', 'creation_date'])
-
-        if len(all_incomes) != 0:
-            income_frame = pd.DataFrame(all_incomes)
-
-        income_frame.rename(columns={'amount': 'Доход', 'source': 'Источник'}, inplace=True)
-        income_frame.set_index('creation_date', drop=True, inplace=True)
-        income_frame.index = pd.to_datetime(income_frame.index)
-
-        all_expenses: list = get_all_entity(chat_id, 'expense')
-
-        if len(all_expenses) != 0:
-            expense_frame = pd.DataFrame(all_expenses)
-
-        expense_frame.rename(columns={'amount': 'Расход', 'source': 'Цель расхода'}, inplace=True)
-        expense_frame.set_index('creation_date', drop=True, inplace=True)
-        expense_frame.index = pd.to_datetime(expense_frame.index)
-
-        budget_frame = income_frame.join(expense_frame, how='outer')
-        budget_frame.fillna(0.0, inplace=True)
+        budget_frame = get_budget_frame(chat_id)
+        budget_frame.rename(columns={
+            'income_amount': 'Доход',
+            'expense_amount': 'Расход',
+            'income_source': 'Источник дохода',
+            'expense_source': 'Цель расхода'
+        }, inplace=True)
 
         filename: str = 'Files/' + str(datetime.now()) + '.csv'
         budget_frame.to_csv(filename)
@@ -242,34 +219,14 @@ def get_plot_budget(response: dict) -> None:
     try:
         chat_id: int = response['callback_query']['message']['chat']['id']
 
-        all_incomes: list = get_all_entity(chat_id, 'income')
-
-        income_frame = pd.DataFrame(columns=['source', 'amount', 'creation_date'])
-        expense_frame = pd.DataFrame(columns=['source', 'amount', 'creation_date'])
-
-        if len(all_incomes) != 0:
-            income_frame = pd.DataFrame(all_incomes)
-
-        income_frame.drop(columns=['source'], inplace=True)
-        income_frame.rename(columns={'amount': 'Доход'}, inplace=True)
-        income_frame.set_index('creation_date', drop=True, inplace=True)
-        income_frame.index = pd.to_datetime(income_frame.index)
-
-        all_expenses: list = get_all_entity(chat_id, 'expense')
-
-        if len(all_expenses) != 0:
-            expense_frame = pd.DataFrame(all_expenses)
-
-        expense_frame.drop(columns=['source'], inplace=True)
-        expense_frame.rename(columns={'amount': 'Расход'}, inplace=True)
-        expense_frame.set_index('creation_date', drop=True, inplace=True)
-        expense_frame.index = pd.to_datetime(expense_frame.index)
-
-        budget_frame = income_frame.join(expense_frame, how='outer')
-        budget_frame.fillna(0.0, inplace=True)
+        budget_frame = get_budget_frame(chat_id)
+        budget_frame.drop(columns=['income_source', 'expense_source'], inplace=True)
+        budget_frame.rename(columns={
+            'income_amount': 'Доход',
+            'expense_amount': 'Расход',
+        }, inplace=True)
 
         plt.clf()
-
         plt.plot(budget_frame['Доход'], label='Доход')
         plt.plot(budget_frame['Расход'], label='Расход')
         plt.grid()
@@ -295,16 +252,15 @@ def get_plot_budget(response: dict) -> None:
 def default(response: dict) -> None:
     chat_id: int = response['message']['chat']['id']
 
-    if chat_id in commands_cash.keys():
+    if chat_id in commands_cash:
         commands_cash[chat_id]['process_function'](response)
 
 
 def process_source(response:  dict) -> None:
     try:
         chat_id: int = response['message']['chat']['id']
-        source = find_source(response['message']['text'])
 
-        if source is not None:
+        if source := find_source(response['message']['text']):
             commands_cash[chat_id]['entity']['source'] = source
             commands_cash[chat_id]['process_function'] = process_amount
             commands_cash[chat_id]['on_failed_text'] = 'Допускаются только суммы не свыше 999999 рублей.\n' \
@@ -321,16 +277,15 @@ def process_source(response:  dict) -> None:
 
 def process_amount(response: dict) -> None:
     try:
-        chat_id = response['message']['chat']['id']
-        amount = find_amount(response['message']['text'])
+        chat_id: int = response['message']['chat']['id']
 
-        if amount is not None:
+        if amount := find_amount(response['message']['text']):
             commands_cash[chat_id]['entity']['amount'] = amount
             commands_cash[chat_id]['process_function'] = process_date
-            commands_cash[chat_id][
-                'on_failed_text'] = 'Допускаются даты в формате {dd.mm.yyyy} или {dd.mm.yyyy HH:MM}\n' \
-                                    '(24 часовое представление времени).\n' \
-                                    'Дата должна быть не позднее текущей.'
+            commands_cash[chat_id]['on_failed_text'] = \
+                'Допускаются даты в формате {dd.mm.yyyy} или {dd.mm.yyyy HH:MM}\n' \
+                '(24 часовое представление времени).\n' \
+                'Дата должна быть не позднее текущей.'
 
             inline_keyboard = [
                 [
@@ -356,10 +311,9 @@ def process_amount(response: dict) -> None:
 
 def process_date(response: dict) -> None:
     try:
-        chat_id = response['message']['chat']['id']
-        date = find_datetime(response['message']['text'])
+        chat_id: int = response['message']['chat']['id']
 
-        if date is not None and date <= datetime.now():
+        if (date := find_datetime(response['message']['text'])) and date <= datetime.now():
             entity = commands_cash[chat_id]['entity']
 
             insert_budget_entity(chat_id, entity['source'], entity['amount'], date, entity['budget_entity'])
@@ -372,8 +326,42 @@ def process_date(response: dict) -> None:
 
             logging.info(f'Bot command: {commands_cash[chat_id]["command"]} | Chat ID: {chat_id} | Success')
             commands_cash.pop(chat_id)
+
         else:
             send_message(chat_id, commands_cash[chat_id]['on_failed_text'])
 
     except Exception as ex:
         logging.error(ex)
+
+
+def get_budget_frame(chat_id: int) -> DataFrame:
+    all_incomes: list = get_all_entity(chat_id, 'income')
+
+    income_frame = pd.DataFrame(columns=['source', 'amount', 'creation_date'])
+    expense_frame = pd.DataFrame(columns=['source', 'amount', 'creation_date'])
+
+    if len(all_incomes) != 0:
+        income_frame = pd.DataFrame(all_incomes)
+
+    income_frame.rename(columns={'amount': 'income_amount', 'source': 'income_source'}, inplace=True)
+    income_frame.set_index('creation_date', drop=True, inplace=True)
+    income_frame.index = pd.to_datetime(income_frame.index)
+
+    all_expenses: list = get_all_entity(chat_id, 'expense')
+
+    if len(all_expenses) != 0:
+        expense_frame = pd.DataFrame(all_expenses)
+
+    expense_frame.rename(columns={'amount': 'expense_amount', 'source': 'expense_source'}, inplace=True)
+    expense_frame.set_index('creation_date', drop=True, inplace=True)
+    expense_frame.index = pd.to_datetime(expense_frame.index)
+
+    budget_frame = income_frame.join(expense_frame, how='outer')
+    budget_frame.fillna({
+        'expense_amount': 0.0,
+        'income_amount': 0.0,
+        'expense_source': '-',
+        'income_source': '-'
+    }, inplace=True)
+
+    return budget_frame

@@ -3,34 +3,28 @@ from datetime import datetime
 
 
 def find_amount(text: str) -> float:
-    search_result = re.search('(\d{1,6}([.,]\d{1,2}))|(\d{1,6}[.])|(\d{1,6})', text)
-
-    if search_result is None:
+    if search_result := re.search('(\d{1,6}([.,]\d{1,2}))|(\d{1,6}[.])|(\d{1,6})', text):
+        return float(search_result.group())
+    else:
         return None
-
-    return float(search_result.group())
 
 
 def find_datetime(text: str) -> datetime:
-    search_result = re.search(
-        '([1-9]|[1-2][0-9]|3[0-2]|0[1-9]).([1-9]|1[0-2]|0[1-9]).\d{4}(\s?(([0-1][0-9]|2[0-3]):([0-5][0-9]))|)',
-        text)
+    if search_result := re.search(
+            '([1-9]|[1-2][0-9]|3[0-2]|0[1-9]).([1-9]|1[0-2]|0[1-9]).\d{4}(\s?(([0-1][0-9]|2[0-3]):([0-5][0-9]))|)',
+            text):
+        try:
+            date = datetime.strptime(search_result.group(), '%d.%m.%Y %H:%M')
+        except:
+            date = datetime.strptime(search_result.group(), '%d.%m.%Y')
 
-    if search_result is None:
+        return date
+    else:
         return None
-
-    try:
-        date = datetime.strptime(search_result.group(), '%d.%m.%Y %H:%M')
-    except:
-        date = datetime.strptime(search_result.group(), '%d.%m.%Y')
-
-    return date
 
 
 def find_source(text: str) -> str:
-    search_result = re.search('[a-zA-zа-яА-я.,\s]+', text)
-
-    if search_result is None:
-        return None
-    else:
+    if search_result := re.search('[a-zA-zа-яА-я.,\s]+', text):
         return search_result.group()
+    else:
+        return None

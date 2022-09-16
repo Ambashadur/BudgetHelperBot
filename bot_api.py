@@ -129,23 +129,19 @@ def bot_processing() -> None:
         if response is None:
             continue
 
-        if 'message' in response.keys() and 'text' in response['message'].keys():
+        if 'message' in response and 'text' in response['message']:
             response_text: str = response['message']['text']
 
-            search_result = re.search('\/[a-zA-z]*', response_text)
-
-            if search_result is not None and search_result.group() in commands.keys():
-                command = search_result.group()
+            if ((search_result := re.search('[/][a-z]*', response_text)) and
+                    (command := search_result.group()) in commands):
                 commands[command](response)
 
             elif default_command is not None:
                 default_command(response)
 
-        elif 'callback_query' in response.keys():
-            data: str = response['callback_query']['data']
-
-            if data in callback_queries.keys():
-                callback_queries[data](response)
+        elif ('callback_query' in response and
+              (data := response['callback_query']['data']) in callback_queries):
+            callback_queries[data](response)
 
 
 def command_handler(command: str, description: str):
